@@ -30,6 +30,20 @@ namespace DA { // begin DA
     FileParser& operator=(const FileParser &c) = delete;
     // ~FileParser();
 
+    //parse line
+    bool ParseLine( StringVectorType& tokens ) {
+      std::string line2parse;
+
+      std::getline( fin_, line2parse );
+      if ( !fin_.eof( ) ) {
+	tokens = StringTokenizer( line2parse );
+	return true;
+      }
+      else {
+	return false;
+      }
+    }
+  private: 	//private member functions
     //string tokenizer
     StringVectorType StringTokenizer( std::string input ) {
       StringVectorType result;
@@ -44,20 +58,6 @@ namespace DA { // begin DA
 
       return result;
     }
-
-    bool ParseLine( StringVectorType& tokens ) {
-      std::string line2parse;
-
-      std::getline( fin_, line2parse );
-      if ( !fin_.eof( ) ) {
-	tokens = StringTokenizer( line2parse );
-	return true;
-      }
-      else {
-	return false;
-      }
-    }
-  private: 	//private member functions
     
   public: 	//public data members
     

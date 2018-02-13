@@ -38,6 +38,113 @@ namespace DA { // begin DA
     // CampaignBook(const CampaignBook &c);
     // ~CampaignBook();
     
+    //main processing function
+    void Process( ) {
+      //create file parser
+      FileParser fp( FIN_ );
+      FileParser::StringVectorType tokens;
+      while ( fp.ParseLine( tokens ) == true && tokens.size( ) != 0 ) {
+	// std::cout << "Tokens Size: " << tokens.size( ) << std::endl;
+	// for ( std::size_t i = 0; i < tokens.size( ); ++i ) {
+	//   std::cout << tokens[i] << std::endl;
+	// }
+	this -> AddDonor( tokens );
+      }
+    }
+  private: 	//private member functions
+    //function to add a donor based on donor info
+    void AddDonor( DonorInfoType& info ) {
+      if ( info.size( ) != 21 ) {
+	return;
+      }
+      //Check for valid donor info...
+      // per instructions "Input File Considerations"
+      if ( info.at(15) != "" ) {
+	return;
+      }
+      else if ( info.at(13) == "" ||
+		CheckSizeAndNumeric( info.at(13), 8 ) == false ) {
+	return;
+      }
+      else if ( info.at(10) == "" ||
+		CheckSizeAndNumeric( info.at(10).substr(0,5), 5 ) == false ) {
+	return;
+      }
+      else if ( info.at(7) == "" ) {
+	return;
+      }
+      else if ( info.at(0) == "" || info.at(14) == "" ) {
+	return;
+      }
+      
+      //make campaign contribution object
+      CampContrib cc( info );
+      
+      //print
+      //cc.Print( );
+
+      //dont technically need this...
+      //add to contributions vector
+      // contribs_.push_back( cc );
+      
+      //add to contributions map
+      // key is "NAME-ZIP_CODE" using first five digits of the zip code...
+      string key = BuildKey( info );
+      if ( repeat_donors_.find( key ) == repeat_donors_.end( ) ) {
+	repeat_donors_.insert( make_pair( key, VectorCCType( ) ) );
+	repeat_donors_[key].push_back( cc );
+      }
+      else {
+	//we have a repeat donor...
+	repeat_donors_[key].push_back( cc );
+	VectorCCType agg_donors; //aggregate donors...
+	for ( auto it = repeat_donors_.begin( );
+	      it != repeat_donors_.end( ); ++it ) {
+	  this -> CrossRefDonor( cc, it, agg_donors );
+	}
+	//now do output/statistics on aggregate donors
+	// cout << "Aggregate Donor List Size: " << agg_donors.size( ) << endl;
+	string output = ComputeOutput( agg_donors );
+	// cout << output << endl;
+	FOUT_ << output << endl;
+      }
+    }
+
+    //compute statistics
+    string ComputeOutput( VectorCCType& agg_donors ) {
+      size_t NumDonors = agg_donors.size( );
+      size_t tot_contrib = NumDonors;
+      double tot_trans_amt = 0.0;
+      vector< double > trans_amt_vec;
+      for ( size_t i = 0; i < NumDonors; ++i ) {
+	double trans_amt = agg_donors[i].GetTRANSACTION_AMT( );
+	tot_trans_amt += trans_amt;
+	trans_amt_vec.push_back( trans_amt );
+      }
+      // for ( size_t i = 0; i < trans_amt_vec.size( ); ++i ) {
+      // 	cout << trans_amt_vec.at(i) << " ";
+      // }
+      // cout << endl;
+      size_t n = NearestRank( trans_amt_vec );
+      int percentile = round( trans_amt_vec.at( n ) );
+      // cout << "n,per: " << n << ", " << percentile << endl;
+      stringstream ss;
+      ss << agg_donors[0].GetCMTE_ID( ) << "|"
+	 << agg_donors[0].GetZIP_CODE( ) << "|"
+	 << agg_donors[0].GetTRANSACTION_DT( ).substr(4) << "|"
+	 << percentile << "|"
+	 << tot_trans_amt << "|"
+	 << tot_contrib;
+      return ss.str( );
+    }
+    template< typename T >
+    size_t NearestRank( vector< T >& vec ) {
+      sort( vec.begin( ), vec.end( ) );
+      //subtract 1 to adjust to zero indexed arrays
+      size_t n = ceil( percentage_/100.0 * double(vec.size( )) ) - 1;
+      return n;
+    }
+
     //check date
     bool CheckSizeAndNumeric( const string& str, size_t size ) {
       if ( str.size( ) != size ) //check MMDDYYY format...
@@ -101,106 +208,7 @@ namespace DA { // begin DA
 	  agg_donors.push_back( ele );
 	}
       }
-    }
-    //function to add a donor based on donor info
-    void AddDonor( DonorInfoType& info ) {
-      
-      //Check for valid donor info...
-      // per instructions "Iput File Considerations"
-      if ( info.at(15) != "" ) {
-	return;
-      }
-      else if ( info.at(13) == "" ||
-		CheckSizeAndNumeric( info.at(13), 8 ) == false ) {
-	return;
-      }
-      else if ( info.at(10) == "" ||
-		CheckSizeAndNumeric( info.at(10).substr(0,5), 5 ) == false ) {
-	return;
-      }
-      else if ( info.at(7) == "" ) {
-	return;
-      }
-      else if ( info.at(0) == "" || info.at(14) == "" ) {
-	return;
-      }
-      
-      //make campaign contribution object
-      CampContrib cc( info );
-      
-      //print
-      //cc.Print( );
-
-      //dont technically need this...
-      //add to contributions vector
-      // contribs_.push_back( cc );
-      
-      //add to contributions map
-      // key is "NAME-ZIP_CODE" using first five digits of the zip code...
-      string key = BuildKey( info );
-      if ( repeat_donors_.find( key ) == repeat_donors_.end( ) ) {
-	repeat_donors_.insert( make_pair( key, VectorCCType( ) ) );
-	repeat_donors_[key].push_back( cc );
-      }
-      else {
-	//we have a repeat donor...
-	repeat_donors_[key].push_back( cc );
-	VectorCCType agg_donors; //aggregate donors...
-	for ( auto it = repeat_donors_.begin( );
-	      it != repeat_donors_.end( ); ++it ) {
-	  this -> CrossRefDonor( cc, it, agg_donors );
-	}
-	//now do output/statistics on aggregate donors
-	// cout << "Aggregate Donor List Size: " << agg_donors.size( ) << endl;
-	string output = ComputeOutput( agg_donors );
-	// cout << output << endl;
-	FOUT_ << output << endl;
-      }
-    }
-    //compute statistics
-    string ComputeOutput( VectorCCType& agg_donors ) {
-      size_t NumDonors = agg_donors.size( );
-      size_t tot_contrib = NumDonors;
-      double tot_trans_amt = 0.0;
-      vector< double > trans_amt_vec;
-      for ( size_t i = 0; i < NumDonors; ++i ) {
-	double trans_amt = agg_donors[i].GetTRANSACTION_AMT( );
-	tot_trans_amt += trans_amt;
-	trans_amt_vec.push_back( trans_amt );
-      }
-      size_t n = NearestRank( trans_amt_vec );
-      int percentile = round( trans_amt_vec.at( n ) );
-      stringstream ss;
-      ss << agg_donors[0].GetCMTE_ID( ) << "|"
-	 << agg_donors[0].GetZIP_CODE( ) << "|"
-	 << agg_donors[0].GetTRANSACTION_DT( ).substr(4) << "|"
-	 << percentile << "|"
-	 << tot_trans_amt << "|"
-	 << tot_contrib;
-      return ss.str( );
-    }
-    template< typename T >
-    size_t NearestRank( vector< T >& vec ) {
-      sort( vec.begin( ), vec.end( ) );
-      //subtract 1 to adjust to zero indexed arrays
-      size_t n = ceil( percentage_/100.0 * double(vec.size( )) ) - 1;
-      return n;
-    }
-    //main processing function
-    void Process( ) {
-      //create file parser
-      FileParser fp( FIN_ );
-      FileParser::StringVectorType tokens;
-      while ( fp.ParseLine( tokens ) == true && tokens.size( ) != 0 ) {
-	// std::cout << "Tokens Size: " << tokens.size( ) << std::endl;
-	// for ( std::size_t i = 0; i < tokens.size( ); ++i ) {
-	//   std::cout << tokens[i] << std::endl;
-	// }
-	this -> AddDonor( tokens );
-      }
-    }
-  private: 	//private member functions
-    
+    }    
   public: 	//public data members
     
   private: 	//private data members
